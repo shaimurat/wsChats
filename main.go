@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"log"
 	"net/http"
+	"os"
 	"sync"
 	"time"
 
@@ -232,6 +233,12 @@ func main() {
 	r := gin.Default()
 	r.Use(cors.Default())
 	r.POST("/closeChat/:chatId", closeChat)
+	r.Use(cors.New(cors.Config{
+		AllowOrigins:     []string{"*"},
+		AllowMethods:     []string{"GET", "POST"},
+		AllowHeaders:     []string{"Origin", "Content-Type"},
+		AllowCredentials: true,
+	}))
 
 	r.GET("/ws", func(c *gin.Context) {
 		handleConnections(c.Writer, c.Request)
@@ -240,5 +247,10 @@ func main() {
 	r.GET("/getActiveChats", getActiveChats) // New API for fetching active chats
 
 	log.Println("Chat Service running on port 8082...")
-	r.Run(":8082")
+	port := os.Getenv("PORT")
+	if port == "" {
+		port = "8082"
+	}
+	r.Run(":" + port)
+
 }

@@ -217,6 +217,7 @@ func getUserChats(c *gin.Context) {
 }
 
 // Close an active chat (Update status to "ended")
+// Закрытие активного чата (Обновляем статус и уведомляем пользователей)
 func closeChat(c *gin.Context) {
 	chatID := c.Param("chatId")
 	if chatID == "" {
@@ -224,7 +225,7 @@ func closeChat(c *gin.Context) {
 		return
 	}
 
-	// Mark the chat as "ended" in MongoDB
+	// Обновляем статус чата на "ended"
 	filter := bson.M{"chatId": chatID}
 	update := bson.M{"$set": bson.M{"status": "ended"}}
 
@@ -235,13 +236,30 @@ func closeChat(c *gin.Context) {
 		return
 	}
 
-	// Remove from active clients
+	// Оповещение всех клиентов о закрытии чата
 	clientsMutex.Lock()
 	defer clientsMutex.Unlock()
 	for client, id := range clients {
 		if id == chatID {
-			client.Close() // Disconnect WebSocket
+			closeMessage := ChatMessage{
+				Sender:    "System",
+				Message:   "Chat closed by admin.",
+				Timestamp: time.Now(),
+			}
+			err := client.WriteJSON(closeMessage)
+			if err != nil {
+				log.Println("WebSocket Write Error:", err)
+			}
+			client.Close() // Закрываем WebSocket соединение
 			delete(clients, client)
+		}
+	}
+
+	// Удаляем соединение у админа, если он был подключен
+	for admin, isAdmin := range adminClients {
+		if isAdmin {
+			admin.Close()
+			delete(adminClients, admin)
 		}
 	}
 

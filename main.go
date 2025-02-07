@@ -176,19 +176,22 @@ func getActiveChats(c *gin.Context) {
 	clientsMutex.Lock()
 	defer clientsMutex.Unlock()
 
-	if len(clients) == 0 {
-		fmt.Println("No active clients connected!")
-		c.JSON(http.StatusOK, gin.H{"activeChats": []string{}})
-		return
-	}
+	// Debugging: Print all connected clients
+	fmt.Println("Debug: Current Active Clients Map:", clients)
 
 	var activeChats []string
 	for _, chatID := range clients {
 		activeChats = append(activeChats, chatID)
 	}
 
-	fmt.Println("Active Chats Found:", activeChats)
-	c.JSON(http.StatusOK, gin.H{"activeChats": activeChats})
+	fmt.Println("Debug: Active Chats:", activeChats)
+
+	// Return active chats, ensuring it's never null
+	if len(activeChats) == 0 {
+		c.JSON(http.StatusOK, gin.H{"activeChats": []string{}})
+	} else {
+		c.JSON(http.StatusOK, gin.H{"activeChats": activeChats})
+	}
 }
 
 // Close an Active Chat

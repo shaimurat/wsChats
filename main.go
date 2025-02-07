@@ -275,7 +275,7 @@ func getUserActiveChats(c *gin.Context) {
 		return
 	}
 
-	// Find only active chats
+	// Найти только активные чаты
 	cursor, err := chatCollection.Find(context.TODO(), bson.M{"userEmail": userEmail, "status": "active"})
 	if err != nil {
 		log.Println("Database error while fetching user active chats:", err)
@@ -294,8 +294,10 @@ func getUserActiveChats(c *gin.Context) {
 		activeChats = append(activeChats, chat)
 	}
 
-	c.JSON(http.StatusOK, activeChats)
+	// Возвращаем объект { "activeChats": [...] }, а не просто массив
+	c.JSON(http.StatusOK, gin.H{"activeChats": activeChats})
 }
+
 func getActiveChats(c *gin.Context) {
 	clientsMutex.Lock()
 	defer clientsMutex.Unlock()

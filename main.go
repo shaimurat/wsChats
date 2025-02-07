@@ -62,7 +62,7 @@ func handleConnections(w http.ResponseWriter, r *http.Request) {
 		UserEmail string `json:"userEmail"`
 		Sender    string `json:"sender"`
 	}
-
+	fmt.Println(initMsg.UserEmail)
 	err = ws.ReadJSON(&initMsg)
 	if err != nil {
 		log.Println("WebSocket Read Error:", err)

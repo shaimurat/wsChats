@@ -30,6 +30,7 @@ type Chat struct {
 	ChatID    string        `bson:"chatId" json:"chatId"`
 	UserEmail string        `bson:"userEmail" json:"userEmail"`
 	Messages  []ChatMessage `bson:"messages" json:"messages"`
+	Status    string        `bson:"status" json:"status"` // "active" or "ended"
 }
 
 // ChatMessage model
@@ -75,6 +76,7 @@ func handleConnections(w http.ResponseWriter, r *http.Request) {
 			ChatID:    initMsg.ChatID,
 			UserEmail: initMsg.UserEmail,
 			Messages:  []ChatMessage{},
+			Status:    "active", // Set new chat status to "active"
 		}
 
 		_, err := chatCollection.InsertOne(context.TODO(), newChat)
@@ -201,11 +203,22 @@ func getUserChats(c *gin.Context) {
 	c.JSON(http.StatusOK, chats)
 }
 
-// Close an active chat
+// Close an active chat (Update status to "ended")
 func closeChat(c *gin.Context) {
 	chatID := c.Param("chatId")
 	if chatID == "" {
 		c.JSON(http.StatusBadRequest, gin.H{"error": "chatId is required"})
+		return
+	}
+
+	// Mark the chat as "ended" in MongoDB
+	filter := bson.M{"chatId": chatID}
+	update := bson.M{"$set": bson.M{"status": "ended"}}
+
+	_, err := chatCollection.UpdateOne(context.TODO(), filter, update)
+	if err != nil {
+		log.Println("Error closing chat:", err)
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "Could not close chat"})
 		return
 	}
 
@@ -222,13 +235,46 @@ func closeChat(c *gin.Context) {
 	c.JSON(http.StatusOK, gin.H{"message": "Chat closed successfully"})
 }
 
+// Get only active chats for a user
+func getUserActiveChats(c *gin.Context) {
+	userEmail := c.Param("userEmail")
+
+	if userEmail == "" {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "userEmail is required"})
+		return
+	}
+
+	// Find only active chats
+	cursor, err := chatCollection.Find(context.TODO(), bson.M{"userEmail": userEmail, "status": "active"})
+	if err != nil {
+		log.Println("Database error while fetching user active chats:", err)
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "Database error"})
+		return
+	}
+	defer cursor.Close(context.TODO())
+
+	var chats []Chat
+	for cursor.Next(context.TODO()) {
+		var chat Chat
+		if err := cursor.Decode(&chat); err != nil {
+			log.Println("Error decoding chat:", err)
+			continue
+		}
+		chats = append(chats, chat)
+	}
+
+	c.JSON(http.StatusOK, chats)
+}
+
+// Register route in main function
+
 func main() {
-	clientOptions := options.Client().ApplyURI("mongodb+srv://your_mongo_uri")
+	clientOptions := options.Client().ApplyURI("mongodb+srv://danial:Danial_2005@pokegame.fxobs.mongodb.net/?retryWrites=true&w=majority&appName=PokeGame\"")
 	client, err := mongo.Connect(context.TODO(), clientOptions)
 	if err != nil {
 		log.Fatal(err)
 	}
-	chatCollection = client.Database("ChatDB").Collection("chats")
+	chatCollection = client.Database("PokeGame").Collection("chats")
 	fmt.Println("Chat Service Connected to MongoDB")
 
 	r := gin.Default()
@@ -240,7 +286,8 @@ func main() {
 	r.POST("/closeChat/:chatId", closeChat)
 
 	r.GET("/chat/history/:chatId", getChatHistory)
-	r.GET("/user/chats/:userEmail", getUserChats) // New endpoint for user chats
+	r.GET("/user/chats/:userEmail", getUserChats) // Fetch user chats
+	r.GET("/user/activeChats/:userEmail", getUserActiveChats)
 
 	log.Println("Chat Service running on port 8082...")
 	port := os.Getenv("PORT")

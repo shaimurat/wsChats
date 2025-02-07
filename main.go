@@ -265,6 +265,27 @@ func getUserActiveChats(c *gin.Context) {
 
 	c.JSON(http.StatusOK, chats)
 }
+func getActiveChats(c *gin.Context) {
+	clientsMutex.Lock()
+	defer clientsMutex.Unlock()
+
+	// Debugging: Print all connected clients
+	fmt.Println("Debug: Current Active Clients Map:", clients)
+
+	var activeChats []string
+	for _, chatID := range clients {
+		activeChats = append(activeChats, chatID)
+	}
+
+	fmt.Println("Debug: Active Chats:", activeChats)
+
+	// Return active chats, ensuring it's never null
+	if len(activeChats) == 0 {
+		c.JSON(http.StatusOK, gin.H{"activeChats": []string{}})
+	} else {
+		c.JSON(http.StatusOK, gin.H{"activeChats": activeChats})
+	}
+}
 
 // Register route in main function
 
@@ -288,7 +309,7 @@ func main() {
 	r.GET("/chat/history/:chatId", getChatHistory)
 	r.GET("/user/chats/:userEmail", getUserChats) // Fetch user chats
 	r.GET("/user/activeChats/:userEmail", getUserActiveChats)
-
+	r.GET("/getActiveChats", getActiveChats)
 	log.Println("Chat Service running on port 8082...")
 	port := os.Getenv("PORT")
 	if port == "" {

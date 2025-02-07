@@ -284,17 +284,17 @@ func getUserActiveChats(c *gin.Context) {
 	}
 	defer cursor.Close(context.TODO())
 
-	var chats []Chat
+	var activeChats []Chat
 	for cursor.Next(context.TODO()) {
 		var chat Chat
 		if err := cursor.Decode(&chat); err != nil {
 			log.Println("Error decoding chat:", err)
 			continue
 		}
-		chats = append(chats, chat)
+		activeChats = append(activeChats, chat)
 	}
 
-	c.JSON(http.StatusOK, chats)
+	c.JSON(http.StatusOK, activeChats)
 }
 func getActiveChats(c *gin.Context) {
 	clientsMutex.Lock()

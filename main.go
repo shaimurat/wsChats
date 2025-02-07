@@ -305,17 +305,20 @@ func getActiveChats(c *gin.Context) {
 
 	var activeChats []string
 	for _, chatID := range clients {
-		activeChats = append(activeChats, chatID)
+		// Проверяем статус чата в MongoDB
+		var chat Chat
+		err := chatCollection.FindOne(context.TODO(), bson.M{"chatId": chatID, "status": "active"}).Decode(&chat)
+		if err == nil { // Чат найден и активен
+			activeChats = append(activeChats, chatID)
+		} else {
+			fmt.Println("Chat is not active or not found:", chatID) // Debugging
+		}
 	}
 
 	fmt.Println("Debug: Active Chats:", activeChats)
 
-	// Return active chats, ensuring it's never null
-	if len(activeChats) == 0 {
-		c.JSON(http.StatusOK, gin.H{"activeChats": []string{}})
-	} else {
-		c.JSON(http.StatusOK, gin.H{"activeChats": activeChats})
-	}
+	// Return only active chats
+	c.JSON(http.StatusOK, gin.H{"activeChats": activeChats})
 }
 
 // Register route in main function

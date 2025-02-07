@@ -72,18 +72,23 @@ func handleConnections(w http.ResponseWriter, r *http.Request) {
 	// If no chat ID is provided, create a new one
 	if initMsg.ChatID == "" {
 		initMsg.ChatID = uuid.New().String()
-		newChat := Chat{
-			ChatID:    initMsg.ChatID,
-			UserEmail: initMsg.UserEmail,
-			Messages:  []ChatMessage{},
-			Status:    "active", // Set new chat status to "active"
-		}
+	}
 
-		_, err := chatCollection.InsertOne(context.TODO(), newChat)
-		if err != nil {
-			log.Println("Error creating new chat:", err)
-			return
-		}
+	// Ensure chat exists in DB before proceeding
+	filter := bson.M{"chatId": initMsg.ChatID}
+	update := bson.M{
+		"$setOnInsert": bson.M{
+			"chatId":    initMsg.ChatID,
+			"userEmail": initMsg.UserEmail,
+			"messages":  []ChatMessage{}, // Initialize messages as empty array
+			"status":    "active",
+		},
+	}
+	options := options.Update().SetUpsert(true)
+	_, err = chatCollection.UpdateOne(context.TODO(), filter, update, options)
+	if err != nil {
+		log.Println("Error ensuring chat exists:", err)
+		return
 	}
 
 	clientsMutex.Lock()
@@ -97,6 +102,7 @@ func handleConnections(w http.ResponseWriter, r *http.Request) {
 		Timestamp: time.Now(),
 	})
 
+	// Listen for messages
 	for {
 		var msg ChatMessage
 		err := ws.ReadJSON(&msg)
@@ -116,11 +122,18 @@ func handleConnections(w http.ResponseWriter, r *http.Request) {
 }
 
 // Save message to MongoDB by appending to the messages array
+// Save message to MongoDB by appending to the messages array
 func saveMessage(chatID string, msg ChatMessage) {
 	filter := bson.M{"chatId": chatID}
-	update := bson.M{"$push": bson.M{"messages": msg}}
+	update := bson.M{
+		"$push":        bson.M{"messages": msg},    // Append message to messages array
+		"$setOnInsert": bson.M{"status": "active"}, // Set status only if inserting new doc
+	}
 
-	_, err := chatCollection.UpdateOne(context.TODO(), filter, update)
+	// Use upsert: true to create chat if it doesn’t exist
+	options := options.Update().SetUpsert(true)
+
+	_, err := chatCollection.UpdateOne(context.TODO(), filter, update, options)
 	if err != nil {
 		log.Println("Error saving message:", err)
 	}

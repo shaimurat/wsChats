@@ -199,6 +199,29 @@ func getUserActiveChats(c *gin.Context) {
 	c.JSON(http.StatusOK, gin.H{"activeChats": activeChats})
 }
 
+// Get all active chats with user emails
+func getActiveChats(c *gin.Context) {
+	cursor, err := chatCollection.Find(context.TODO(), bson.M{"status": "active"})
+	if err != nil {
+		log.Println("Database error while fetching active chats:", err)
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "Database error"})
+		return
+	}
+	defer cursor.Close(context.TODO())
+
+	var activeChats []Chat
+	for cursor.Next(context.TODO()) {
+		var chat Chat
+		if err := cursor.Decode(&chat); err != nil {
+			log.Println("Error decoding chat:", err)
+			continue
+		}
+		activeChats = append(activeChats, chat)
+	}
+
+	c.JSON(http.StatusOK, gin.H{"activeChats": activeChats})
+}
+
 func main() {
 	clientOptions := options.Client().ApplyURI("mongodb+srv://danial:Danial_2005@pokegame.fxobs.mongodb.net/?retryWrites=true&w=majority&appName=PokeGame")
 	client, err := mongo.Connect(context.TODO(), clientOptions)
@@ -214,6 +237,7 @@ func main() {
 	r.GET("/ws", func(c *gin.Context) {
 		handleConnections(c.Writer, c.Request)
 	})
+	r.GET("/getActiveChats", getActiveChats)
 	r.GET("/chat/history/:chatId", getChatHistory)
 	r.GET("/user/activeChats/:userEmail", getUserActiveChats)
 

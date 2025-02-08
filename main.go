@@ -74,10 +74,12 @@ func handleConnections(w http.ResponseWriter, r *http.Request) {
 	filter := bson.M{"chatId": initMsg.ChatID}
 	update := bson.M{
 		"$set": bson.M{
+			// Always update userEmail
 			"status": "active",
 		},
 		"$setOnInsert": bson.M{
-			"messages": []ChatMessage{}, // Only set messages on insert
+			"userEmail": initMsg.UserEmail,
+			"messages":  []ChatMessage{}, // Only set messages on insert
 		},
 	}
 	options := options.Update().SetUpsert(true)

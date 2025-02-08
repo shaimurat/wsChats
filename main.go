@@ -58,6 +58,7 @@ func handleConnections(w http.ResponseWriter, r *http.Request) {
 		ChatID    string `json:"chatId"`
 		UserEmail string `json:"userEmail"`
 	}
+
 	err = ws.ReadJSON(&initMsg)
 	if err != nil {
 		log.Println("WebSocket Read Error:", err)
@@ -69,14 +70,15 @@ func handleConnections(w http.ResponseWriter, r *http.Request) {
 		initMsg.ChatID = uuid.New().String()
 	}
 
-	// Ensure the chat exists in the database
+	// Ensure chat exists and ALWAYS update userEmail
 	filter := bson.M{"chatId": initMsg.ChatID}
 	update := bson.M{
-		"$setOnInsert": bson.M{
-			"chatId":    initMsg.ChatID,
-			"userEmail": initMsg.UserEmail,
-			"messages":  []ChatMessage{}, // Initialize messages as empty array
+		"$set": bson.M{
+			"userEmail": initMsg.UserEmail, // Always update userEmail
 			"status":    "active",
+		},
+		"$setOnInsert": bson.M{
+			"messages": []ChatMessage{}, // Only set messages on insert
 		},
 	}
 	options := options.Update().SetUpsert(true)
@@ -87,7 +89,7 @@ func handleConnections(w http.ResponseWriter, r *http.Request) {
 	}
 
 	clientsMutex.Lock()
-	clients[ws] = initMsg.ChatID // Store the chat session
+	clients[ws] = initMsg.ChatID // Store chat session
 	clientsMutex.Unlock()
 
 	// Notify client that chat session has started
@@ -199,6 +201,47 @@ func getUserActiveChats(c *gin.Context) {
 	c.JSON(http.StatusOK, gin.H{"activeChats": activeChats})
 }
 
+// Close an Active Chat
+func closeChat(c *gin.Context) {
+	chatID := c.Param("chatId")
+	if chatID == "" {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "chatId is required"})
+		return
+	}
+
+	// Update the chat status to "ended" in MongoDB
+	filter := bson.M{"chatId": chatID}
+	update := bson.M{"$set": bson.M{"status": "ended"}}
+
+	_, err := chatCollection.UpdateOne(context.TODO(), filter, update)
+	if err != nil {
+		log.Println("Error closing chat:", err)
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "Could not close chat"})
+		return
+	}
+
+	// Notify all users/admins in this chat
+	closeMessage := ChatMessage{
+		Sender:    "System",
+		Message:   "This chat has been closed by the admin.",
+		Timestamp: time.Now(),
+	}
+
+	broadcastMessage(chatID, closeMessage)
+
+	// Remove the chat session from active clients
+	clientsMutex.Lock()
+	for client, id := range clients {
+		if id == chatID {
+			client.Close() // Close WebSocket connection
+			delete(clients, client)
+		}
+	}
+	clientsMutex.Unlock()
+
+	c.JSON(http.StatusOK, gin.H{"message": "Chat closed successfully"})
+}
+
 // Get all active chats with user emails
 func getActiveChats(c *gin.Context) {
 	cursor, err := chatCollection.Find(context.TODO(), bson.M{"status": "active"})
@@ -240,7 +283,7 @@ func main() {
 	r.GET("/getActiveChats", getActiveChats)
 	r.GET("/chat/history/:chatId", getChatHistory)
 	r.GET("/user/activeChats/:userEmail", getUserActiveChats)
-
+	r.POST("/closeChat/:chatId", closeChat)
 	log.Println("Chat Service running on port 8082...")
 	port := os.Getenv("PORT")
 	if port == "" {

@@ -70,18 +70,35 @@ func handleConnections(w http.ResponseWriter, r *http.Request) {
 		initMsg.ChatID = uuid.New().String()
 	}
 
-	// Ensure chat exists and ALWAYS update userEmail
+	// Проверяем текущий статус чата
+	var existingChat Chat
+	err = chatCollection.FindOne(context.TODO(), bson.M{"chatId": initMsg.ChatID}).Decode(&existingChat)
+	if err != nil && err != mongo.ErrNoDocuments {
+		log.Println("Error fetching chat status:", err)
+		return
+	}
+
+	// Если чат существует и он "ended", не позволяем его снова активировать
+	if existingChat.Status == "ended" {
+		log.Println("Chat is closed, rejecting connection")
+		ws.WriteJSON(ChatMessage{
+			Sender:    "System",
+			Message:   "This chat has been closed by the admin.",
+			Timestamp: time.Now(),
+		})
+		return
+	}
+
+	// Ensure chat exists, but НЕ обновляем статус, если он "ended"
 	filter := bson.M{"chatId": initMsg.ChatID}
 	update := bson.M{
-		"$set": bson.M{
-			// Always update userEmail
-			"status": "active",
-		},
 		"$setOnInsert": bson.M{
 			"userEmail": initMsg.UserEmail,
-			"messages":  []ChatMessage{}, // Only set messages on insert
+			"messages":  []ChatMessage{},
+			"status":    "active", // Только при создании нового чата
 		},
 	}
+
 	options := options.Update().SetUpsert(true)
 	_, err = chatCollection.UpdateOne(context.TODO(), filter, update, options)
 	if err != nil {
@@ -90,10 +107,9 @@ func handleConnections(w http.ResponseWriter, r *http.Request) {
 	}
 
 	clientsMutex.Lock()
-	clients[ws] = initMsg.ChatID // Store chat session
+	clients[ws] = initMsg.ChatID
 	clientsMutex.Unlock()
 
-	// Notify client that chat session has started
 	ws.WriteJSON(ChatMessage{
 		Sender:    "System",
 		Message:   "Chat session started.",

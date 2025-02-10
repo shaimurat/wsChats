@@ -344,7 +344,7 @@ func main() {
 	r.GET("/getActiveChats", getActiveChats)
 	r.GET("/chat/history/:chatId", getChatHistory)
 	r.GET("/user/activeChats/:userEmail", getUserActiveChats)
-	r.GET("/user/endedChats/:userEmail/:userStatus", getUserEndedChats)
+	r.GET("/user/endedChats/:userEmail", getUserEndedChats)
 
 	r.POST("/closeChat/:chatId", closeChat)
 	log.Println("Chat Service running on port 8082...")

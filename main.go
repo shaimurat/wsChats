@@ -138,8 +138,9 @@ func handleConnections(w http.ResponseWriter, r *http.Request) {
 func saveMessage(chatID string, msg ChatMessage) {
 	filter := bson.M{"chatId": chatID}
 	update := bson.M{
-		"$push":        bson.M{"messages": msg},    // Append message to messages array
-		"$setOnInsert": bson.M{"status": "active"}, // Set status only if inserting new doc
+		"$push":        bson.M{"messages": msg},
+		"$set":         bson.M{"lastMessageTime": msg.Timestamp}, // Append message to messages array
+		"$setOnInsert": bson.M{"status": "active"},               // Set status only if inserting new doc
 	}
 
 	// Use upsert: true to create chat if it doesn’t exist
@@ -282,6 +283,37 @@ func getActiveChats(c *gin.Context) {
 	c.JSON(http.StatusOK, gin.H{"activeChats": activeChats})
 }
 
+// Get ended chats for a user
+func getUserEndedChats(c *gin.Context) {
+	userEmail := c.Param("userEmail")
+
+	if userEmail == "" {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "userEmail is required"})
+		return
+	}
+
+	// Найти все чаты пользователя со статусом "ended"
+	cursor, err := chatCollection.Find(context.TODO(), bson.M{"userEmail": userEmail, "status": "ended"})
+	if err != nil {
+		log.Println("Database error while fetching ended chats:", err)
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "Database error"})
+		return
+	}
+	defer cursor.Close(context.TODO())
+
+	var endedChats []Chat
+	for cursor.Next(context.TODO()) {
+		var chat Chat
+		if err := cursor.Decode(&chat); err != nil {
+			log.Println("Error decoding chat:", err)
+			continue
+		}
+		endedChats = append(endedChats, chat)
+	}
+
+	c.JSON(http.StatusOK, gin.H{"endedChats": endedChats})
+}
+
 func main() {
 	clientOptions := options.Client().ApplyURI("mongodb+srv://danial:Danial_2005@pokegame.fxobs.mongodb.net/?retryWrites=true&w=majority&appName=PokeGame")
 	client, err := mongo.Connect(context.TODO(), clientOptions)
@@ -300,6 +332,8 @@ func main() {
 	r.GET("/getActiveChats", getActiveChats)
 	r.GET("/chat/history/:chatId", getChatHistory)
 	r.GET("/user/activeChats/:userEmail", getUserActiveChats)
+	r.GET("/user/endedChats/:userEmail", getUserEndedChats)
+
 	r.POST("/closeChat/:chatId", closeChat)
 	log.Println("Chat Service running on port 8082...")
 	port := os.Getenv("PORT")

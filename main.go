@@ -26,11 +26,12 @@ var upgrader = websocket.Upgrader{
 
 // Chat model
 type Chat struct {
-	ID        string        `bson:"_id,omitempty" json:"id"`
-	ChatID    string        `bson:"chatId" json:"chatId"`
-	UserEmail string        `bson:"userEmail" json:"userEmail"`
-	Messages  []ChatMessage `bson:"messages" json:"messages"`
-	Status    string        `bson:"status" json:"status"` // "active" or "ended"
+	ID          string        `bson:"_id,omitempty" json:"id"`
+	ChatID      string        `bson:"chatId" json:"chatId"`
+	UserEmail   string        `bson:"userEmail" json:"userEmail"`
+	Messages    []ChatMessage `bson:"messages" json:"messages"`
+	LastMessage ChatMessage   `bson:"lastMessage" json:"lastMessage"`
+	Status      string        `bson:"status" json:"status"` // "active" or "ended"
 }
 
 // ChatMessage model
@@ -243,7 +244,7 @@ func closeChat(c *gin.Context) {
 	// Notify all users/admins in this chat
 	closeMessage := ChatMessage{
 		Sender:    "System",
-		Message:   "This chat has been closed by the admin.",
+		Message:   "This chat has been closed by the admin. Please refresh the Page",
 		Timestamp: time.Now(),
 	}
 

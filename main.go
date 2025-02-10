@@ -289,26 +289,30 @@ func getActiveChats(c *gin.Context) {
 // Get ended chats for a user
 func getUserEndedChats(c *gin.Context) {
 	userEmail := c.Param("userEmail")
-	userStatus := c.Param("userStatus")
+	userStatus := c.Query("userStatus") // Используем Query-параметр вместо Param
+
 	if userEmail == "" {
 		c.JSON(http.StatusBadRequest, gin.H{"error": "userEmail is required"})
 		return
 	}
-	var cursor *mongo.Cursor // Declare cursor in the outer scope
+
+	var cursor *mongo.Cursor
 	var err error
+
+	// Проверяем статус пользователя
 	if userStatus == "admin" {
 		cursor, err = chatCollection.Find(context.TODO(), bson.M{"status": "ended"})
-
 	} else {
 		cursor, err = chatCollection.Find(context.TODO(), bson.M{"userEmail": userEmail, "status": "ended"})
-
 	}
+
 	if err != nil {
 		log.Println("Database error while fetching ended chats:", err)
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "Database error"})
 		return
 	}
 	defer cursor.Close(context.TODO())
+
 	var endedChats []Chat
 	for cursor.Next(context.TODO()) {
 		var chat Chat

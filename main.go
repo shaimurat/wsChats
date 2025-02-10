@@ -30,7 +30,8 @@ type Chat struct {
 	ChatID          string        `bson:"chatId" json:"chatId"`
 	UserEmail       string        `bson:"userEmail" json:"userEmail"`
 	Messages        []ChatMessage `bson:"messages" json:"messages"`
-	Status          string        `bson:"status" json:"status"` // "active" or "ended"
+	Status          string        `bson:"status" json:"status"`           // "active" or "ended"
+	LastMessage     string        `bson:"lastMessage" json:"lastMessage"` // "active" or "ended"
 	LastMessageTime time.Time     `bson:"lastMessageTime" json:"lastMessageTime"`
 }
 
@@ -139,9 +140,11 @@ func handleConnections(w http.ResponseWriter, r *http.Request) {
 func saveMessage(chatID string, msg ChatMessage) {
 	filter := bson.M{"chatId": chatID}
 	update := bson.M{
-		"$push":        bson.M{"messages": msg},
-		"$set":         bson.M{"lastMessageTime": msg.Timestamp}, // Append message to messages array
-		"$setOnInsert": bson.M{"status": "active"},               // Set status only if inserting new doc
+		"$push": bson.M{"messages": msg},
+		"$set": bson.M{"lastMessageTime": msg.Timestamp,
+			"lastMessage": msg,
+		}, // Append message to messages array
+		"$setOnInsert": bson.M{"status": "active"}, // Set status only if inserting new doc
 	}
 
 	// Use upsert: true to create chat if it doesn’t exist

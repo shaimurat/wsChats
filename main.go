@@ -26,13 +26,11 @@ var upgrader = websocket.Upgrader{
 
 // Chat model
 type Chat struct {
-	ID              string        `bson:"_id,omitempty" json:"id"`
-	ChatID          string        `bson:"chatId" json:"chatId"`
-	UserEmail       string        `bson:"userEmail" json:"userEmail"`
-	Messages        []ChatMessage `bson:"messages" json:"messages"`
-	Status          string        `bson:"status" json:"status"`           // "active" or "ended"
-	LastMessage     string        `bson:"lastMessage" json:"lastMessage"` // "active" or "ended"
-	LastMessageTime time.Time     `bson:"lastMessageTime" json:"lastMessageTime"`
+	ID        string        `bson:"_id,omitempty" json:"id"`
+	ChatID    string        `bson:"chatId" json:"chatId"`
+	UserEmail string        `bson:"userEmail" json:"userEmail"`
+	Messages  []ChatMessage `bson:"messages" json:"messages"`
+	Status    string        `bson:"status" json:"status"` // "active" or "ended"
 }
 
 // ChatMessage model

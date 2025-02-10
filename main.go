@@ -289,21 +289,26 @@ func getActiveChats(c *gin.Context) {
 // Get ended chats for a user
 func getUserEndedChats(c *gin.Context) {
 	userEmail := c.Param("userEmail")
-
+	userStatus := c.Param("userStatus")
 	if userEmail == "" {
 		c.JSON(http.StatusBadRequest, gin.H{"error": "userEmail is required"})
 		return
 	}
+	var cursor *mongo.Cursor // Declare cursor in the outer scope
+	var err error
+	if userStatus == "admin" {
+		cursor, err = chatCollection.Find(context.TODO(), bson.M{"status": "ended"})
 
-	// Найти все чаты пользователя со статусом "ended"
-	cursor, err := chatCollection.Find(context.TODO(), bson.M{"userEmail": userEmail, "status": "ended"})
+	} else {
+		cursor, err = chatCollection.Find(context.TODO(), bson.M{"userEmail": userEmail, "status": "ended"})
+
+	}
 	if err != nil {
 		log.Println("Database error while fetching ended chats:", err)
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "Database error"})
 		return
 	}
 	defer cursor.Close(context.TODO())
-
 	var endedChats []Chat
 	for cursor.Next(context.TODO()) {
 		var chat Chat
@@ -335,7 +340,7 @@ func main() {
 	r.GET("/getActiveChats", getActiveChats)
 	r.GET("/chat/history/:chatId", getChatHistory)
 	r.GET("/user/activeChats/:userEmail", getUserActiveChats)
-	r.GET("/user/endedChats/:userEmail", getUserEndedChats)
+	r.GET("/user/endedChats/:userEmail/:userStatus", getUserEndedChats)
 
 	r.POST("/closeChat/:chatId", closeChat)
 	log.Println("Chat Service running on port 8082...")
